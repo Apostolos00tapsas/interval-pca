@@ -1,7 +1,8 @@
 Metadata-Version: 2.4
 Name: interval-pca
-Version: 0.1.0
+Version: 0.1.1
 Summary: Interval algebra and Interval Principal Component Analysis (IPCA), following Gioia & Lauro (2006)
+Author-email: Apostolos Tapsas <apotapsas@gmail.com>
 License: MIT
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
