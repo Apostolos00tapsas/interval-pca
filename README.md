@@ -324,6 +324,37 @@ the Gioia & Lauro Oil-dataset benchmark validation, and the
 Palumbo & Lauro midpoints-and-radii benchmark validation, both
 described above.
 
+## Visualization (New in v0.2.0)
+
+`interval-pca` now includes a built-in visualization module (`interval_pca.vis`) to easily plot interval PCA scores as rectangles (bounding boxes) on the factorial plane. 
+
+Here is how you can visualize the results of the Midpoint-Radius PCA on the Oil dataset:
+
+```python
+import matplotlib.pyplot as plt
+from interval_pca.datasets import load_oil_dataset
+from interval_pca.midrad_pca import MidpointRadiusPCA
+from interval_pca.vis import plot_pca_rectangles
+
+# 1. Load data and fit the model
+X_lo, X_hi, units, variables = load_oil_dataset()
+mr = MidpointRadiusPCA().fit(X_lo, X_hi)
+
+# 2. Extract the computed interval scores (adjust variable names if needed based on your class attributes)
+scores_lo = mr.scores_lo  
+scores_hi = mr.scores_hi  
+
+# 3. Plot the rectangles
+fig, ax = plot_pca_rectangles(
+   mr_scores.lo, 
+   mr_scores.hi, 
+   labels=units, 
+   title="Oil Dataset - Midpoint & Radius PCA"
+)
+plt.show()
+```
+Output:
+![Alt text](docs/interval_pca_plot.png)
 ## Citation
 
 If you use this library or its validation findings in your research, please cite it as:
