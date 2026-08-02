@@ -9,6 +9,7 @@ Run with:   python examples/oil_example.py
 
 import sys
 import os
+import matplotlib.pyplot as plt
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -16,6 +17,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from interval_pca.datasets import load_oil_dataset
 from interval_pca.ipca import IntervalPCA
 from interval_pca.interval_algebra import Interval
+from interval_pca.vis import plot_pca_rectangles
 
 if __name__ == "__main__":
     X_lo, X_hi, units, variables = load_oil_dataset()
@@ -77,3 +79,8 @@ if __name__ == "__main__":
     for i, unit in enumerate(units):
         pc1 = Interval(mr_scores.lo[i, 0], mr_scores.hi[i, 0])
         print(f"  {unit:10s} PC1={pc1}")
+
+    # Calculate scores
+    print("Plot with 1 line!")
+    fig, ax = plot_pca_rectangles(mr_scores.lo, mr_scores.hi, labels=units, title="Oil Dataset - Midpoint & Radius PCA")
+    plt.show()
