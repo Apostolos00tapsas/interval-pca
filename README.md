@@ -1,0 +1,342 @@
+# interval_pca
+
+A Python library implementing:
+
+1. **Interval algebra** — Moore-style interval arithmetic and interval
+   matrix operations (Section 2, *Definitions notations and basic
+   facts*).
+2. **Interval Principal Component Analysis (IPCA)** — the interval
+   correlation-matrix-based PCA method described in Sections 3–4.
+3. **A validity check** that reproduces the paper's own numerical
+   example (the Oil dataset, Section 5) and reports how closely this
+   implementation's output matches the values actually published in
+   the paper.
+
+Primary references:
+
+> Gioia, F. & Lauro, C.N. (2006). *Principal Component Analysis on
+> Interval Data*. Computational Statistics 21, 343–363.
+
+> Palumbo, F. & Lauro, C.N. (2003). *A PCA for interval-valued data
+> based on midpoints and radii*. In New Developments in Psychometrics
+> (Yanai et al., eds.), Springer-Verlag, Tokyo. — provides a second,
+> oversizing-free method (`MidpointRadiusPCA`), added specifically to
+> address a limitation of the first paper's method found during this
+> library's own validation (see Section 3 below).
+
+Two further papers were used for context and cross-checking (both
+included as PDFs alongside this project):
+
+> Douzal-Chouakria, A., Billard, L. & Diday, E. (2011). *Principal
+> Component Analysis for Interval-Valued Observations*. Statistical
+> Analysis and Data Mining 4(2), 229–246. — an independent method
+> (the "vertices" approach) that explicitly critiques interval-algebra
+> based PCA as prone to becoming oversized "unless the intervals are
+> short" — a warning this project's own validation (below)
+> independently reproduces on the paper's own dataset.
+
+> Adam, S.P., Magoulas, G.D., Karras, D.A. & Vrahatis, M.N. (2016).
+> *Bounding the Search Space for Global Optimization of Neural
+> Networks Learning Error: An Interval Analysis Approach*. JMLR 17.
+> — a different application of interval analysis (bounding neural
+> network weight spaces); not used by the PCA code, but its
+> `interval_algebra`-level ideas (natural inclusion functions,
+> inclusion monotonicity) match Section 2 of the main paper and
+> informed the `Interval` class' docstrings/tests.
+
+## Installation
+
+```bash
+pip install -e .
+```
+
+Requires `numpy` and `scipy`. `pytest` is only needed to run the test
+suite.
+
+## Package layout
+
+```
+interval_pca/
+  interval_algebra.py   Interval, IntervalArray, IntervalVector, IntervalMatrix
+  interval_stats.py     interval standardization, interval correlation
+  ipca.py                IntervalPCA (Gioia & Lauro 2006: interval-correlation-based)
+  midrad_pca.py           MidpointRadiusPCA (Palumbo & Lauro 2003: midpoints-and-radii)
+  datasets.py             the Oil dataset (Table 2) + both papers' published numbers
+tests/
+  test_interval_algebra.py    arithmetic rules (2.1.2), algebraic laws, matrix product
+  test_interval_stats.py      standardization/correlation sanity & degenerate-case checks
+  test_oil_benchmark.py       validation against Gioia & Lauro's Section 5 results
+  test_midrad_pca_benchmark.py  validation against Palumbo & Lauro's Table 1
+examples/
+  oil_example.py               end-to-end usage example (both methods)
+```
+
+## 1. Interval algebra
+
+```python
+from interval_pca.interval_algebra import Interval, IntervalMatrix
+
+a, b = Interval(1, 2), Interval(3, 5)
+a + b   # [4, 7]
+a - b   # [-4, -1]
+a * b   # [3, 10]
+a / b   # [0.2, 0.667]
+```
+
+Implements the four elementary operations exactly per eq. (2.1.2) of
+the paper, degenerate ("thin") intervals behaving as ordinary real
+numbers, and `IntervalMatrix.matmul` implementing the exact interval
+matrix product of Definition 2.2.3 (computed via all four corner
+products per term, not an approximation).
+
+## 2. Interval PCA
+
+```python
+from interval_pca.datasets import load_oil_dataset
+from interval_pca.ipca import IntervalPCA
+
+X_lo, X_hi, units, variables = load_oil_dataset()
+
+pca = IntervalPCA(standardize=True, n_restarts=8, seed=0)
+pca.fit(X_lo, X_hi, variable_names=variables, unit_names=units)
+
+print(pca.summary())
+```
+
+Pipeline (mirrors Sections 3–4):
+
+1. Interval-standardize each variable (Appendix, eq. 2–4).
+2. Build the **interval correlation matrix** Γ^I directly from the raw
+   interval data (used instead of the provably-oversized (X^I)′X^I —
+   see the discussion around eq. (3.6) in the paper, and the
+   docstring in `ipca.py` explaining why this implementation computes
+   Γ^I from raw data rather than by chaining
+   standardize → correlate).
+3. **Interval eigenvalues** of Γ^I via **Theorem 2.3.1** (Deif's
+   sign-invariant perturbation bound): λ_α ∈ [λ_α(Γ_c) − Δ_α,
+   λ_α(Γ_c) + Δ_α], with Δ_α = |u_α|′ ΔΓ |u_α|.
+4. **Interval explained variance** per axis (eq. 3.7), computed via
+   the exact monotonicity of f(λ) = λ_α / Σλ_β in each argument
+   (equivalent to, but simpler to verify than, Proposition 2.1.1's
+   rational-function machinery).
+5. **Interval principal component scores**: c_α^I = X^I u_α (Section
+   4.1, "approach 1" — using the real eigenvector of the centre
+   correlation matrix, which the paper itself recommends when the
+   interval-eigenvector linear-programming problem of Theorem 2.3.2 is
+   not solved).
+6. **Interval variable/axis correlations** (Section 4.2).
+7. **Interval absolute contributions** of units to each axis (Section
+   4.3, eq. 4.3.2), computed exactly via the same monotonicity
+   argument as step 4.
+
+Both interval-standardization and interval-correlation are genuine
+nonlinear constrained-optimization problems (the paper says as much:
+*"the computational cost of each optimization problem refers to the
+cost of a constrained nonlinear optimization"*). This implementation
+solves them with multi-start bounded local optimization
+(`scipy.optimize.minimize`, L-BFGS-B) — a practical numerical
+approximation of the min/max, not a symbolically-certified global
+optimum. This is stated explicitly in the code and is the reason the
+validity check below is framed as a *numerical* comparison against the
+paper's published numbers rather than an exact re-derivation.
+
+### Not implemented: Theorem 2.3.2 interval eigenvectors
+
+The paper's *exact* interval eigenvector bounds require solving a
+linear parametric programming problem per component (Theorem 2.3.2 /
+Seif et al. 1992). This library uses the simpler, paper-endorsed
+"approach 1" of Section 4.1 (real eigenvectors of the centre matrix)
+instead. A full LP-based implementation of Theorem 2.3.2 is a natural
+extension but is out of scope here.
+
+## 3. Validity check against the paper's own numbers
+
+`tests/test_oil_benchmark.py` loads the exact **Oil dataset** from
+Table 2 of the paper (8 oils × 4 interval variables) and compares this
+implementation's output against the values the authors themselves
+report in Section 5. Run it as a human-readable report with:
+
+```bash
+python -m tests.test_oil_benchmark
+```
+
+**Findings** (see the script's `_print_report()` for full numeric
+detail):
+
+- **3 of the 6** interval-correlation pairs — every pair **not**
+  involving *Saponification* — match the paper's Table 2 closely
+  (within a few hundredths), validating the correlation-optimization
+  machinery and the overall pipeline. For example:
+
+  | pair | this implementation | paper |
+  |---|---|---|
+  | Spec.gravity / Freezing point | [−0.976, −0.801] | [−0.97, −0.80] |
+  | Spec.gravity / Iodine value | [0.598, 0.882] | [0.62, 0.88] |
+  | Freezing point / Iodine value | [−0.780, −0.488] | [−0.77, −0.52] |
+
+- The **3 pairs involving *Saponification*** come out heavily
+  oversized (close to the full [−1, 1] range) in this implementation,
+  while the paper reports much tighter intervals for them. This is
+  investigated and explained rather than treated as a bug: the
+  paper's own footnote 1 states the method is reliable only when each
+  interval's radius/centre ratio is "empirically ... approximately
+  2–3%". In this dataset, **Linseed's Saponification interval is
+  [118, 196]** — a centre of 157 and a radius of 39, i.e. a **~25%**
+  radius/centre ratio, roughly ten times the guideline, and by far the
+  largest in the whole table. That single wide interval is enough for
+  the joint optimization defining interval correlation (and, likewise,
+  interval standardization) to swing the achievable correlation with
+  Saponification across the *entire* [−1, 1] range. This matches the
+  independent critique in Douzal-Chouakria, Billard & Diday (2011):
+  *"interval arithmetic ideas do not work well for principal
+  component analysis unless the intervals are short."*
+- The **first (dominant) interval eigenvalue** still overlaps the
+  paper's reported [2.45, 3.40] (this implementation: ≈[2.27, 2.76]),
+  and eigenvalues/explained-variance intervals pass basic sanity
+  checks (valid intervals, centre eigenvalues summing to the matrix
+  trace = 4, explained variance within [0, 1] up to small numerical
+  slack). The 2nd–4th eigenvalues diverge more, which is the expected
+  downstream consequence of the Saponification oversizing propagating
+  through Theorem 2.3.1.
+
+**Conclusion:** the implementation is verified to be *methodologically
+faithful* to the paper (matching the definitions and, where the
+data satisfies the paper's own stated validity precondition, matching
+its published numbers closely), and it correctly, predictably
+reproduces the paper's *own documented failure mode* — rather than
+silently returning misleadingly narrow numbers — for the one variable
+in the benchmark dataset that violates that precondition.
+
+## 3. Midpoints-and-Radii PCA (Palumbo & Lauro) — an oversizing-free alternative
+
+The validity check above surfaces a real limitation of the Gioia &
+Lauro correlation-matrix approach: when one unit's interval is
+unusually wide relative to the rest of the sample (Linseed's
+Saponification `[118, 196]` here), the joint nonlinear optimization
+defining interval correlation can swing all the way to `[-1, 1]`,
+contaminating every downstream quantity for that variable.
+
+> Palumbo, F. & Lauro, C.N. (2003). *A PCA for interval-valued data
+> based on midpoints and radii*. In New Developments in Psychometrics
+> (Yanai et al., eds.), Springer-Verlag, Tokyo.
+
+fixes this **by construction, not by tuning**: every interval `[a, b]`
+is losslessly re-parameterized as `(midpoint, radius)` — a purely
+algebraic, one-to-one transform with no min/max optimization involved.
+PCA is then done with only *ordinary, real-valued* linear algebra:
+
+1. Build the combined variance-covariance matrix `VX` from midpoints,
+   radii, **and their cross-term** (eq. 4) — this is what lets the
+   method see both "where" (location) and "how wide" (variation) each
+   unit is, without ever needing to search over a box of possible
+   values.
+2. Standardize and build the correlation matrix `R²` (eq. 5) — this
+   library confirms `tr(R²) = p` and unit diagonal hold *exactly*, a
+   mathematical identity of the construction, independent of the data.
+3. Run **two separate classical PCAs** — one on the standardized
+   midpoints, one on the standardized radii (eq. 6–7).
+4. Reconcile them with an **orthogonal Procrustes rotation** that
+   aligns the radii onto the midpoints' own axes (eq. 8–9), giving
+   interval PC scores `ψᶜ ± ψʳ` (eq. 10) with no interval optimization
+   anywhere in the pipeline.
+
+```python
+from interval_pca.datasets import load_oil_dataset
+from interval_pca.midrad_pca import MidpointRadiusPCA
+
+X_lo, X_hi, units, variables = load_oil_dataset()
+mr = MidpointRadiusPCA().fit(X_lo, X_hi, variable_names=variables, unit_names=units)
+print(mr.summary())
+```
+
+### Validation: `tests/test_midrad_pca_benchmark.py`
+
+Run the human-readable report with:
+
+```bash
+python -m tests.test_midrad_pca_benchmark
+```
+
+**The headline result — no oversizing, even on the original data:**
+on the *exact*, uncorrected Oil dataset (including Linseed's wide
+Saponification interval), MidpointRadiusPCA gives every unit a
+finite, appropriately-sized interval PC1 score. Linseed (the genuine
+outlier) correctly gets the widest interval (width ≈7.7), but every
+other unit stays modest (width 0.28–0.99) — there is no global
+collapse to a meaningless, identical worst case, unlike the Gioia &
+Lauro correlation matrix's `[-1, 1]` on the same data.
+
+**Numerical reproduction of the paper's own Table 1:** while building
+this benchmark, comparing this implementation's midpoints-eigenvalue
+output against the paper's published numbers surfaced a likely data
+issue rather than an implementation bug — see the "Data quality note"
+below.
+
+| | this implementation (original data) | this implementation (corrected data*) | paper (Table 1) |
+|---|---|---|---|
+| Σ λᶜ (midpoints) | 4.529 | **2.882** | 2.904 |
+| Σ λʳ (midranges) | 2.647 | 0.805 | 0.265 |
+| Σ λᶜʳ (rotation) | 2.022 | 0.289 | 0.955 |
+| three-way total | 9.198 | **3.976** | 4.124 |
+
+\* *Linseed's Saponification lower bound changed from 118 to 188 —
+see below.*
+
+The dominant "midpoints" component — the least sensitive of the three
+to exactly how radii/rotation happen to be normalized — comes into
+close numerical agreement with the paper (2.882 vs 2.904) once this
+correction is applied, and the combined three-way total lands near the
+paper's ~4.12 in both cases. The radius/rotation split is less exact,
+which is plausibly attributable to real ambiguity in the paper's own
+one-page "global analysis" section (Sec. 3.4) — e.g. its formula
+`ψ̌ʳ_iα = xʳ_i uʳ_α aᵢ` doesn't parse dimensionally as printed, so this
+implementation adopts the most natural reading (rotate the radii
+matrix into the midpoints' variable-space via the Procrustes matrix,
+then project onto the midpoints' own PC axes) rather than a possibly
+garbled OCR artifact.
+
+**Data quality note:** Linseed's Saponification interval `[118, 196]`
+(Table 2 of Gioia & Lauro 2006, the same source table this paper's
+"Ichino oils" dataset draws from) gives Linseed a radius of 39 —
+*larger than its own between-unit midpoint variance* — while every
+other oil's Saponification value sits inside `[187, 202]` (radius ≤
+8). That single interval is what drives the Gioia & Lauro correlation
+blow-up *and* what keeps this implementation from matching Table 1
+closely. Substituting `188` for `118` (a plausible single-digit
+OCR/transcription slip, and the value that would fit the pattern of
+every other unit) brings the reproduction into close agreement. This
+is reported as a documented hypothesis, not a silent "fix": the
+library's default `load_oil_dataset()` keeps the literal Table 2
+values, and `load_oil_dataset_corrected()` exposes the alternative
+explicitly for anyone who wants to check it themselves.
+
+## Running the tests
+
+```bash
+pip install -e ".[test]"
+python -m pytest tests/ -v
+```
+
+26 tests total: interval-algebra arithmetic/algebraic-law checks,
+interval-statistics sanity checks (degenerate-interval reduction to
+classical statistics, inclusion of the midpoint-configuration result),
+the Gioia & Lauro Oil-dataset benchmark validation, and the
+Palumbo & Lauro midpoints-and-radii benchmark validation, both
+described above.
+
+## Citation
+
+If you use this library or its validation findings in your research, please cite it as:
+
+```bibtex
+@software{tapsas2026intervalpca,
+  author       = {Tapsas, Apostolos},
+  title        = {interval-pca: Interval Algebra and Interval PCA in Python},
+  year         = {2026},
+  publisher    = {PyPI},
+  url          = {[https://pypi.org/project/interval-pca/](https://pypi.org/project/interval-pca/)}
+}
+```
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
