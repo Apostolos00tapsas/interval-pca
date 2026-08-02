@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "interval-pca"
-version = "0.1.0"
+version = "0.1.1"
 description = "Interval algebra and Interval Principal Component Analysis (IPCA), following Gioia & Lauro (2006)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,6 +12,11 @@ dependencies = [
     "numpy>=1.20",
     "scipy>=1.7",
 ]
+
+authors = [
+  { name = "Apostolos Tapsas", email = "apotapsas@gmail.com" }
+]
+
 license = {text = "MIT"}
 
 [project.optional-dependencies]
