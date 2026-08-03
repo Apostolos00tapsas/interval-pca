@@ -94,3 +94,78 @@ def plot_pca_rectangles(
 
     plt.tight_layout()
     return fig, ax
+
+def plot_correlation_circle(
+    loadings,
+    var_names=None,
+    pc_x=0,
+    pc_y=1,
+    title="Circle of Correlations",
+    figsize=(7, 7),
+    color="crimson"
+):
+    """
+    Plots the Correlation Circle for PCA loadings/correlations.
+
+    Parameters
+    ----------
+    loadings : np.ndarray
+        Loadings or correlations matrix of shape (p, n_components).
+    var_names : list of str, optional
+        Names of the original variables.
+    pc_x : int, default=0
+        Index of Principal Component for X-axis (0 for PC1).
+    pc_y : int, default=1
+        Index of Principal Component for Y-axis (1 for PC2).
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Draw the unit circle (r = 1)
+    circle = plt.Circle((0, 0), 1, color='gray', fill=False, linestyle='--', linewidth=1.5)
+    ax.add_patch(circle)
+
+    # Reference axes (x=0, y=0)
+    ax.axhline(0, color='gray', linestyle=':', linewidth=0.8)
+    ax.axvline(0, color='gray', linestyle=':', linewidth=0.8)
+
+    p = loadings.shape[0]
+    if var_names is None:
+        var_names = [f"Var {i+1}" for i in range(p)]
+
+    # Plot vectors for each variable
+    for i in range(p):
+        x = loadings[i, pc_x]
+        y = loadings[i, pc_y]
+
+        # Draw arrow
+        ax.annotate(
+            "",
+            xy=(x, y),
+            xytext=(0, 0),
+            arrowprops=dict(arrowstyle="->", color=color, lw=1.5, mutation_scale=15)
+        )
+
+        # Add text label slightly beyond the arrow tip
+        ax.text(
+            x * 1.1,
+            y * 1.1,
+            var_names[i],
+            color="black",
+            ha="center",
+            va="center",
+            fontsize=10,
+            weight="bold"
+        )
+
+    # Formatting limits and aspect ratio
+    ax.set_xlim(-1.25, 1.25)
+    ax.set_ylim(-1.25, 1.25)
+    ax.set_aspect('equal', adjustable='box')
+
+    ax.set_xlabel(f"PC {pc_x + 1}")
+    ax.set_ylabel(f"PC {pc_y + 1}")
+    ax.set_title(title)
+    ax.grid(True, linestyle=":", alpha=0.5)
+
+    plt.tight_layout()
+    return fig, ax
