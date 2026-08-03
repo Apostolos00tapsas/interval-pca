@@ -338,13 +338,9 @@ from interval_pca.vis import plot_pca_rectangles
 
 # 1. Load data and fit the model
 X_lo, X_hi, units, variables = load_oil_dataset()
-mr = MidpointRadiusPCA().fit(X_lo, X_hi)
+mr = MidpointRadiusPCA().fit(X_lo, X_hi) 
 
-# 2. Extract the computed interval scores (adjust variable names if needed based on your class attributes)
-scores_lo = mr.scores_lo  
-scores_hi = mr.scores_hi  
-
-# 3. Plot the rectangles
+# 2. Plot the rectangles
 fig, ax = plot_pca_rectangles(
    mr_scores.lo, 
    mr_scores.hi, 
