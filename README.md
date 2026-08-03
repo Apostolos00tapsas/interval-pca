@@ -324,33 +324,52 @@ the Gioia & Lauro Oil-dataset benchmark validation, and the
 Palumbo & Lauro midpoints-and-radii benchmark validation, both
 described above.
 
-## Visualization (New in v0.2.0)
+## Visualization
 
-`interval-pca` now includes a built-in visualization module (`interval_pca.vis`) to easily plot interval PCA scores as rectangles (bounding boxes) on the factorial plane. 
+`interval-pca` includes a built-in visualization module (`interval_pca.vis`) to easily plot both the **Interval PCA Score Plot** (as bounding boxes) and the **Correlation Circle**.
 
-Here is how you can visualize the results of the Midpoint-Radius PCA on the Oil dataset:
+Here is a complete example using the classic Oil dataset:
 
 ```python
 import matplotlib.pyplot as plt
 from interval_pca.datasets import load_oil_dataset
 from interval_pca.midrad_pca import MidpointRadiusPCA
-from interval_pca.vis import plot_pca_rectangles
+from interval_pca.vis import plot_pca_rectangles, plot_correlation_circle
 
 # 1. Load data and fit the model
 X_lo, X_hi, units, variables = load_oil_dataset()
-mr = MidpointRadiusPCA().fit(X_lo, X_hi) 
+mr = MidpointRadiusPCA().fit(X_lo, X_hi)
 
-# 2. Plot the rectangles
-fig, ax = plot_pca_rectangles(
-   mr_scores.lo, 
-   mr_scores.hi, 
-   labels=units, 
-   title="Oil Dataset - Midpoint & Radius PCA"
+# 2. Extract the required parameters from the fitted model
+# (Assuming the model returns a result object with these attributes)
+loadings = mr.result_.midpoint_eigenvectors
+scores_lo = mr.scores_lo  
+scores_hi = mr.scores_hi  
+
+# 3. Plot the Interval PCA Rectangles (Score Plot)
+fig1, ax1 = plot_pca_rectangles(
+    scores_lo, 
+    scores_hi, 
+    labels=units, 
+    title="Oil Dataset - Interval PCA Score Plot"
 )
+
+# 4. Plot the Correlation Circle (Variables Plot)
+fig2, ax2 = plot_correlation_circle(
+    loadings, 
+    var_names=variables, 
+    title="Oil Dataset - Correlation Circle (PC1 vs PC2)"
+)
+
+# 5. Display both generated figures
 plt.show()
 ```
+
 Output:
 ![Interval PCA Plot](https://github.com/Apostolos00tapsas/interval-pca/blob/main/docs/interval_pca_plot.png)
+
+![Interval PCA Plot](https://github.com/Apostolos00tapsas/interval-pca/blob/main/docs/correlation_cicle.png)
+
 ## Citation
 
 If you use this library or its validation findings in your research, please cite it as:
