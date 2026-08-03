@@ -18,6 +18,7 @@ from interval_pca.datasets import load_oil_dataset
 from interval_pca.ipca import IntervalPCA
 from interval_pca.interval_algebra import Interval
 from interval_pca.vis import plot_pca_rectangles
+from interval_pca.vis import plot_correlation_circle
 
 if __name__ == "__main__":
     X_lo, X_hi, units, variables = load_oil_dataset()
@@ -80,7 +81,25 @@ if __name__ == "__main__":
         pc1 = Interval(mr_scores.lo[i, 0], mr_scores.hi[i, 0])
         print(f"  {unit:10s} PC1={pc1}")
 
-    # Calculate scores
-    print("Plot with 1 line!")
-    fig, ax = plot_pca_rectangles(mr_scores.lo, mr_scores.hi, labels=units, title="Oil Dataset - Midpoint & Radius PCA")
+    # 1. Extract the required parameters from the fitted model
+    loadings = mr.result_.midpoint_eigenvectors
+    scores_lo = mr_scores.lo
+    scores_hi = mr_scores.hi
+
+    # 2. Plot the Interval PCA Rectangles (Score Plot)
+    fig1, ax1 = plot_pca_rectangles(
+        scores_lo, 
+        scores_hi, 
+        labels=units, 
+        title="Oil Dataset - Interval PCA Score Plot"
+    )
+
+    # 3. Plot the Correlation Circle (Variables Plot)
+    fig2, ax2 = plot_correlation_circle(
+    loadings, 
+    var_names=variables, 
+    title="Oil Dataset - Correlation Circle (PC1 vs PC2)"
+    )
+
+    # 4. Display all generated figures
     plt.show()
