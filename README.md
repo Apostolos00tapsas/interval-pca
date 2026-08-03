@@ -350,7 +350,7 @@ fig, ax = plot_pca_rectangles(
 plt.show()
 ```
 Output:
-![Alt text](docs/interval_pca_plot.png)
+![Interval PCA Plot](https://github.com/Apostolos00tapsas/interval-pca/blob/main/docs/interval_pca_plot.png)
 ## Citation
 
 If you use this library or its validation findings in your research, please cite it as:
